@@ -341,7 +341,7 @@ class CombatModule(object):
                 if Utils.find("menu/item_found"):
                     Logger.log_debug("Combat ended: items received screen")
                     if saving_map_drops:
-                        Utils.save_color_screen("droprate_screencaps/maps" +
+                        Utils.save_color_screen("droprate_screencaps/maps/" +
                             self.chapter_map +
                             self.start_time.strftime("/%m%d%H%M_") +
                             str(self.combats_done) +
