@@ -233,7 +233,7 @@ class Config(object):
             config (ConfigParser): ConfigParser instance
         """
         self.drop_rates['enabled'] = True
-        self.drop_rates['ComissionDrops'] = config.getboolean('DropRates', 'ComissionDrops')
+        self.drop_rates['ComissionDrops'] = config.getboolean('DropRates', 'CommissionDrops')
         self.drop_rates['MapDrops'] = config.getboolean('DropRates', 'MapDrops')
         self.drop_rates['ResearchDrops'] = config.getboolean('DropRates', 'ResearchDrops')
 

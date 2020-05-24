@@ -270,6 +270,25 @@ class Utils(object):
         return color_screen
 
     @classmethod
+    def save_color_screen(cls, fname, subset=None):
+        """Saves the current color screen to fname.
+
+        Args:
+            fname (string): the location to save the screen
+            subset: a list of four integers, xlow, xhigh, ylow, yhigh, which
+                    provide bounds for a cropped image. Note that in opencv, 0,0
+                    is at the upper left of the image.
+        """
+
+        if cls.color_screen is not None:
+            if subset is not None:
+                cv2.imwrite(fname, cls.color_screen[subset[2]:subset[3], subset[0]:subset[1]])
+            else:
+                cv2.imwrite(fname, cls.color_screen)
+        else:
+            Logger.log_debug("Screensave failed, no color screen detected")
+
+    @classmethod
     def get_mask_from_alpha(cls, image):
         """Calculate the mask of the specified image from its alpha channel.
         The mask returned is a binary image, where the transparent pixels have been blacked.

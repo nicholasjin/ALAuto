@@ -1,5 +1,6 @@
 import math
 import string
+import os
 from datetime import datetime, timedelta
 from util.logger import Logger
 from util.utils import Region, Utils
@@ -224,7 +225,7 @@ class CombatModule(object):
                 Utils.touch_randomly(self.region['normal_mode_button'])
                 Utils.wait_update_screen(1)
 
-        map_region = Utils.find('maps/map_{}'.format(self.chapter_map), 0.99)
+        map_region = Utils.find('maps/map_{}'.format(self.chapter_map), 0.95)
         if map_region != None:
             Logger.log_msg("Found specified map.")
             return map_region
@@ -310,6 +311,13 @@ class CombatModule(object):
         confirmed_fight = False
         defeat = False
         confirmed_fleet_switch = False
+        saving_map_drops = self.config.drop_rates['enabled'] and self.config.drop_rates["MapDrops"]
+        # Save the time for labelling droprate screenshots, and prepare the
+        # check to make sure the screenshot directory exists.
+        if saving_map_drops:
+            if not os.path.isdir("droprate_screencaps/maps/"+self.chapter_map):
+                os.makedirs("droprate_screencaps/maps/"+self.chapter_map)
+
         while True:
             Utils.update_screen()
 
@@ -320,11 +328,25 @@ class CombatModule(object):
             if not items_received:
                 if Utils.find("combat/menu_touch2continue"):
                     Logger.log_debug("Combat ended: tap to continue")
+                    if saving_map_drops:
+                        Utils.save_color_screen("droprate_screencaps/maps/" +
+                        self.chapter_map +
+                        self.start_time.strftime("/%m%d%H%M_") +
+                        str(self.combats_done) +
+                        "_score.png",
+                        subset = [906, 1920, 246, 494])
                     Utils.touch_randomly(self.region['tap_to_continue'])
                     in_battle = False
                     continue
                 if Utils.find("menu/item_found"):
                     Logger.log_debug("Combat ended: items received screen")
+                    if saving_map_drops:
+                        Utils.save_color_screen("droprate_screencaps/maps" +
+                            self.chapter_map +
+                            self.start_time.strftime("/%m%d%H%M_") +
+                            str(self.combats_done) +
+                            "_drops.png",
+                        subset = [379, 1562, 190, 865])
                     Utils.touch_randomly(self.region['tap_to_continue'])
                     Utils.script_sleep(1)
                     continue
@@ -582,6 +604,7 @@ class CombatModule(object):
         #swipe map to fit everything on screen
         swipes = {
             'E-B3': lambda: Utils.swipe(960, 540, 1060, 670, 300),
+            'E-D2': lambda: Utils.swipe(1788, 426, 1083, 529, 300),
             'E-D3': lambda: Utils.swipe(960, 540, 1060, 670, 300),
             # needs to be updated
             '12-2': lambda: Utils.swipe(1000, 570, 1300, 540, 300),
