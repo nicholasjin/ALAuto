@@ -45,7 +45,7 @@ class EnhancementModule(object):
 
         Args:
             forced (bool): Forces enhancement to start even if need_to_enhance returns False.
-        
+
         Returns:
             enhancement_done (bool): whether at least one enhancement was completed.
         """
@@ -61,7 +61,7 @@ class EnhancementModule(object):
                 if Utils.find("menu/button_sort"):
                     # Tap enhace button from dock is full alert
                     Utils.touch_randomly(self.region['combat_enhance_button'])
-                    Utils.script_sleep(3)
+                    Utils.script_sleep(7.5)
                     continue
                 if Utils.find("menu/button_battle"):
                     Utils.touch_randomly(self.region['dock_tab'])
@@ -79,9 +79,9 @@ class EnhancementModule(object):
                     return self.enhancement_done
                 if Utils.find("enhancement/button_favorite", 0.99):
                     self.enhance_ship()
-                    Utils.script_sleep(1)
+                    Utils.script_sleep(7.5)
                     Utils.touch_randomly(self.region['button_favorite'])
-                    Utils.script_sleep(0.5)
+                    Utils.script_sleep(7.5)
                     if self.called_from_menu:
                         self.previous_call_place = "menu"
                         Utils.menu_navigate("menu/button_battle")
@@ -97,7 +97,7 @@ class EnhancementModule(object):
                 else:
                     Utils.touch_randomly(self.region['button_go_back'])
                     Utils.script_sleep(2)
-    
+
     def set_sort(self):
         """Method which sets the correct filters for enhancement, i.e. 'Enhanceable' option.
         """
@@ -105,7 +105,7 @@ class EnhancementModule(object):
             # Reset self.sorted if the request to enhance came from combat
             # this time or the previous time. The check is necessary because
             # the filters for enhancement and retirement in combat are shared.
-            # If the alert "dock is full" is encountered, the enhancement 
+            # If the alert "dock is full" is encountered, the enhancement
             # module is called without doubts even if it ends up not enhancing
             # (e.g. no common ships unlocked in dock).
             self.sorted = False
@@ -121,7 +121,7 @@ class EnhancementModule(object):
             # Touch the Enhanceable button
             Utils.touch_randomly(self.region['extra_enhanceable_ship_filter'])
             Utils.script_sleep(0.5)
-            
+
             # check if correct options are enabled
             # get the regions of enabled options
             options = Utils.get_enabled_ship_filters(filter_categories="rarity;extra")

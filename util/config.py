@@ -169,6 +169,7 @@ class Config(object):
         self.combat['hide_subs_hunting_range'] = config.getboolean('Combat', 'HideSubsHuntingRange')
         self.combat['small_boss_icon'] = config.getboolean('Combat', 'SmallBossIcon')
         self.combat['siren_elites'] = config.getboolean('Combat', 'SirenElites')
+        self.combat['hardest_first'] = config.getboolean('Combat', 'HardestFirst')
         self.combat['ignore_morale'] = config.getboolean('Combat', 'IgnoreMorale')
         self.combat['low_mood_sleep_time'] = self.try_cast_to_float(config.get('Combat', 'LowMoodSleepTime'))
         self.combat['search_mode'] = self.try_cast_to_int(config.get('Combat', 'SearchMode'))
@@ -288,6 +289,10 @@ class Config(object):
             if map[0] != "E" and self.combat['siren_elites']:
                 self.ok = False
                 Logger.log_error("Story maps don't have elite units.")
+
+            if self.combat["hardest_first"] and not self.combat["clearing_mode"]:
+                self.ok = False
+                Logger.log_error("HardestFirst requires ClearingMode.")
 
             if not isinstance(self.combat['kills_before_boss'], int) or self.combat['kills_before_boss'] < 0:
                 self.ok = False
