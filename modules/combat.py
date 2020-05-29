@@ -329,6 +329,7 @@ class CombatModule(object):
                 if Utils.find("combat/menu_touch2continue"):
                     Logger.log_debug("Combat ended: tap to continue")
                     if saving_map_drops:
+                        Utils.wait_update_screen(time=3)
                         Utils.save_color_screen("droprate_screencaps/maps/" +
                         self.chapter_map +
                         self.start_time.strftime("/%m%d%H%M_") +
@@ -626,7 +627,10 @@ class CombatModule(object):
             Utils.script_sleep()
             Utils.touch_randomly(self.region["close_strategy_menu"])
 
-        target_info = self.get_closest_target(self.blacklist)
+        if self.config.combat["hardest_first"]:
+            target_info = self.get_hardest_target(self.blacklist)
+        else:
+            target_info = self.get_closest_target(self.blacklist)
 
         while True:
             Utils.update_screen()
@@ -687,7 +691,10 @@ class CombatModule(object):
                 self.clear_boss(boss_info)
                 continue
             if target_info == None:
-                target_info = self.get_closest_target(self.blacklist, mystery_node=(not self.config.combat["ignore_mystery_nodes"]))
+                if self.config.combat["hardest_first"]:
+                    target_info = self.get_hardest_target(self.blacklist, mystery_node=(not self.config.combat["ignore_mystery_nodes"]))
+                else:
+                    target_info = self.get_closest_target(self.blacklist, mystery_node=(not self.config.combat["ignore_mystery_nodes"]))
             if target_info:
                 #tap at target's coordinates
                 Utils.touch(target_info[0:2])
@@ -846,6 +853,214 @@ class CombatModule(object):
             self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
         return self.enemies_list
 
+    def get_hardest_enemies(self, blacklist=[], boss=False):
+        Logger.log_msg("Acquiring hardest targets")
+        if not self.config.combat["hardest_first"]:
+            Logger.log_error("get_hardest_enemies() called while feature disabled!")
+        sim = 0.99
+        filter_coordinates = True if len(self.enemies_list) == 0 else False
+        if blacklist:
+            Logger.log_info('Blacklist: ' + str(blacklist))
+            if len(blacklist) > 2:
+                self.enemies_list.clear()
+
+        while not self.enemies_list:
+            if (boss and len(blacklist) > 4) or (not boss and len(blacklist) > 3) or sim < 0.985:
+                if self.swipe_counter > 3: self.swipe_counter = 0
+                swipes = {
+                    0: lambda: Utils.swipe(960, 240, 960, 940, 300),
+                    1: lambda: Utils.swipe(1560, 540, 260, 540, 300),
+                    2: lambda: Utils.swipe(960, 940, 960, 240, 300),
+                    3: lambda: Utils.swipe(260, 540, 1560, 540, 300)
+                }
+                swipes.get(self.swipe_counter)()
+                sim += 0.005
+                self.swipe_counter += 1
+            Utils.update_screen()
+
+            # find sirens and return if any found
+            if self.config.combat['siren_elites']:
+                Logger.log_msg("Looking for Sirens")
+                l7 = Utils.find_siren_elites()
+                # filter coordinates inside prohibited regions
+                for p_region in self.prohibited_region.values():
+                    l7 = [x for x in l7 if (not p_region.contains(x))]
+                l7 = [x for x in l7 if (not self.filter_blacklist(x, blacklist))]
+                Logger.log_debug("L7 " +str(l7))
+                self.enemies_list.extend(l7)
+                if self.enemies_list:
+                    Logger.log_msg("Sirens found?")
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    Logger.log_msg("self.enemies_list:" + str(self.enemies_list))
+                    return self.enemies_list
+
+            Logger.log_msg("No sirens found, looking for hard mobs")
+            if self.use_intersection:
+                base_region_type = Region(60, 60, 100, 100)
+                base_region_level = Region(-60, -80, 100, 100)
+                intersections = []
+
+                # look for 3* mob nodes, and return if found.
+                triple_triangle = map(lambda coords: Region(coords[0].item() + base_region_type.x, coords[1].item() + base_region_type.y,
+                    base_region_type.w, base_region_type.h), Utils.find_all('enemy/enemyt3', sim - 0.075, useMask=True))
+                lv_enemies = list(map(lambda coords: Region(coords[0].item() + base_region_level.x, coords[1].item() + base_region_level.y,
+                    base_region_level.w, base_region_level.h), Utils.find_all('enemy/enemylv', sim - 0.04, useMask=True)))
+                t3_enemies = []
+                for tt in triple_triangle:
+                    t3_enemies.extend(map(tt.intersection, lv_enemies))
+                t3_enemies = filter(None, t3_enemies)
+                intersections.extend(t3_enemies)
+                if intersections:
+                    Logger.log_msg("3* mobs found?")
+                    filtered_intersections = []
+                    while intersections:
+                        region = intersections.pop(0)
+                        new_intersections = []
+                        for item in intersections:
+                            res = region.intersection(item)
+                            if res:
+                                region = res
+                            else:
+                                new_intersections.append(item)
+                        intersections = new_intersections
+                        filtered_intersections.append(region)
+                    enemies_coords = map(Region.get_center, filtered_intersections)
+                    # filter coordinates inside prohibited regions
+                    for p_region in self.prohibited_region.values():
+                        enemies_coords = [x for x in enemies_coords if (not p_region.contains(x))]
+
+                    self.enemies_list = [x for x in enemies_coords if (not self.filter_blacklist(x, blacklist))]
+
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    return self.enemies_list
+                Logger.log_msg("No 3* mobs found")
+
+
+                # Repeat for 2*, then 1* if no sirens and no 3*s
+                double_triangle = map(lambda coords: Region(coords[0].item() + base_region_type.x, coords[1].item() + base_region_type.y,
+                    base_region_type.w, base_region_type.h), Utils.find_all('enemy/enemyt2', sim - 0.075, useMask=True))
+                t2_enemies = []
+                for dt in double_triangle:
+                    t2_enemies.extend(map(dt.intersection, lv_enemies))
+                t2_enemies = filter(None, t2_enemies)
+                intersections.extend(t2_enemies)
+                if intersections:
+                    Logger.log_msg("2* mobs found?")
+                    filtered_intersections = []
+                    while intersections:
+                        region = intersections.pop(0)
+                        new_intersections = []
+                        for item in intersections:
+                            res = region.intersection(item)
+                            if res:
+                                region = res
+                            else:
+                                new_intersections.append(item)
+                        intersections = new_intersections
+                        filtered_intersections.append(region)
+                    enemies_coords = map(Region.get_center, filtered_intersections)
+                    # filter coordinates inside prohibited regions
+                    for p_region in self.prohibited_region.values():
+                        enemies_coords = [x for x in enemies_coords if (not p_region.contains(x))]
+
+                    self.enemies_list = [x for x in enemies_coords if (not self.filter_blacklist(x, blacklist))]
+
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    return self.enemies_list
+                Logger.log_msg("No 2* mobs found")
+
+                # 1* search
+                single_triangle = map(lambda coords: Region(coords[0].item() + base_region_type.x, coords[1].item() + base_region_type.y,
+                    base_region_type.w, base_region_type.h), Utils.find_all('enemy/enemyt1', sim - 0.04, useMask=True))
+                t1_enemies = []
+                for st in single_triangle:
+                    t1_enemies.extend(map(st.intersection, lv_enemies))
+                t1_enemies = filter(None, t1_enemies)
+                intersections.extend(t1_enemies)
+                if intersections:
+                    Logger.log_msg("1* mobs found?")
+                    filtered_intersections = []
+                    while intersections:
+                        region = intersections.pop(0)
+                        new_intersections = []
+                        for item in intersections:
+                            res = region.intersection(item)
+                            if res:
+                                region = res
+                            else:
+                                new_intersections.append(item)
+                        intersections = new_intersections
+                        filtered_intersections.append(region)
+                    enemies_coords = map(Region.get_center, filtered_intersections)
+                    # filter coordinates inside prohibited regions
+                    for p_region in self.prohibited_region.values():
+                        enemies_coords = [x for x in enemies_coords if (not p_region.contains(x))]
+
+                    self.enemies_list = [x for x in enemies_coords if (not self.filter_blacklist(x, blacklist))]
+
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    return self.enemies_list
+                Logger.log_msg("No 1* mobs found")
+            else:
+                l4 = list(map(lambda x:[x[0] + 75, x[1] + 125], Utils.find_all_with_resize('enemy/fleet_3_up', sim - 0.035)))
+                Logger.log_debug("L4: " +str(l4))
+                l5 = list(map(lambda x:[x[0] + 75, x[1] + 100], Utils.find_all_with_resize('enemy/fleet_3_down', sim - 0.035)))
+                Logger.log_debug("L5: " +str(l5))
+
+                enemies_coords = l4 + l5
+                if enemies_coords:
+                    Logger.log_msg("3* mobs found?")
+                    # filter coordinates inside prohibited regions
+                    for p_region in self.prohibited_region.values():
+                        enemies_coords = [x for x in enemies_coords if (not p_region.contains(x))]
+                    self.enemies_list = [x for x in enemies_coords if (not self.filter_blacklist(x, blacklist))]
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    return self.enemies_list
+                Logger.log_msg("No 3* mobs found")
+
+                l3 = list(map(lambda x:[x[0] + 75, x[1] + 90], Utils.find_all_with_resize('enemy/fleet_2_down', sim - 0.02)))
+                Logger.log_debug("L3: " +str(l3))
+                l6 = list(map(lambda x:[x[0] + 75, x[1] + 110], Utils.find_all_with_resize('enemy/fleet_2_up', sim - 0.025)))
+                Logger.log_debug("L6: " +str(l6))
+
+                enemies_coords = l3 + l6
+                if enemies_coords:
+                    Logger.log_msg("2* mobs found?")
+                    # filter coordinates inside prohibited regions
+                    for p_region in self.prohibited_region.values():
+                        enemies_coords = [x for x in enemies_coords if (not p_region.contains(x))]
+                    self.enemies_list = [x for x in enemies_coords if (not self.filter_blacklist(x, blacklist))]
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    return self.enemies_list
+                Logger.log_msg("No 2* mobs found")
+
+                l1 = list(map(lambda x:[x[0] - 3, x[1] - 27], Utils.find_all_with_resize('enemy/fleet_level', sim - 0.025, useMask=True)))
+                Logger.log_debug("L1: " +str(l1))
+                l2 = list(map(lambda x:[x[0] + 75, x[1] + 110], Utils.find_all_with_resize('enemy/fleet_1_down', sim - 0.02)))
+                Logger.log_debug("L2: " +str(l2))
+
+                enemies_coords = l1 + l2
+                if enemies_coords:
+                    Logger.log_msg("mobs found?")
+                    # filter coordinates inside prohibited regions
+                    for p_region in self.prohibited_region.values():
+                        enemies_coords = [x for x in enemies_coords if (not p_region.contains(x))]
+                    self.enemies_list = [x for x in enemies_coords if (not self.filter_blacklist(x, blacklist))]
+                    if filter_coordinates:
+                        self.enemies_list = Utils.filter_similar_coords(self.enemies_list, distance=67)
+                    return self.enemies_list
+                Logger.log_msg("No mobs found")
+            sim -= 0.005
+
+        Logger.log_warning("Reached end of get_hardest_enemies, shouldn't happen")
+        return self.enemies_list
+
     def get_mystery_nodes(self, blacklist=[], boss=False):
         """Method which returns a list of mystery nodes' coordinates.
         """
@@ -955,6 +1170,60 @@ class CombatModule(object):
         else:
             # target only enemy mobs
             targets = self.get_enemies(blacklist, boss)
+
+        closest = targets[Utils.find_closest(targets, location)[1]]
+
+        Logger.log_info('Current location is: {}'.format(fleet_location))
+        Logger.log_info('Targets found at: {}'.format(targets))
+        Logger.log_info('Closest target is at {}'.format(closest))
+
+        if closest in self.enemies_list:
+            x = self.enemies_list.index(closest)
+            del self.enemies_list[x]
+            target_type = "enemy"
+        else:
+            x = self.mystery_nodes_list.index(closest)
+            del self.mystery_nodes_list[x]
+            target_type = "mystery_node"
+
+        return [closest[0], closest[1], target_type]
+
+    def get_hardest_target(self, blacklist=[], location=[], mystery_node=False, boss=False):
+        """Method to get the HARDEST enemy closest to the specified location. Note
+        this will not always be the enemy that is actually closest due to the
+        asset used to find enemies and when enemies are obstructed by terrain
+        or the second fleet
+
+        Args:
+            blacklist(array, optional): Defaults to []. An array of
+            coordinates to exclude when searching for the closest enemy
+
+            location(array, optional): Defaults to []. An array of coordinates
+            to replace the fleet location.
+
+        Returns:
+            array: An array containing the x and y coordinates of the closest
+            enemy to the specified location
+        """
+        Logger.log_msg("Acquiring hardest target")
+        fleet_location = self.get_fleet_location()
+
+        if location == []:
+           location = fleet_location
+
+        if mystery_node and self.chapter_map[0].isdigit():
+            mystery_nodes = self.get_mystery_nodes(blacklist, boss)
+            if self.config.combat['focus_on_mystery_nodes'] and len(mystery_nodes) > 0:
+                # giving mystery nodes top priority and ignoring enemies
+                targets = mystery_nodes
+                Logger.log_info("Prioritizing mystery nodes.")
+            else:
+                # mystery nodes are valid targets, same as enemies
+                enemies = self.get_hardest_enemies(blacklist, boss)
+                targets = enemies + mystery_nodes
+        else:
+            # target only enemy mobs
+            targets = self.get_hardest_enemies(blacklist, boss)
 
         closest = targets[Utils.find_closest(targets, location)[1]]
 
