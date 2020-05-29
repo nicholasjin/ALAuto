@@ -71,7 +71,7 @@ class EnhancementModule(object):
                 if Utils.find("retirement/empty"):
                     Logger.log_msg("No ships left to enhance.")
                     Utils.touch_randomly(self.region['button_favorite'])
-                    Utils.script_sleep(0.5)
+                    Utils.script_sleep(7.5)
                     if self.called_from_menu:
                         Utils.menu_navigate("menu/button_battle")
                     else:
@@ -91,7 +91,7 @@ class EnhancementModule(object):
                     return self.enhancement_done
                 if Utils.find("menu/dock"):
                     Utils.touch_randomly(self.region['button_favorite'])
-                    Utils.script_sleep(1)
+                    Utils.script_sleep(7.5)
                     self.set_sort()
                     continue
                 else:
